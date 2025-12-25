@@ -13,29 +13,18 @@
 
         <div class="heroMeta">
           <div class="metaItem">
-            <span class="metaLabel">기간</span>
+            <span class="metaLabel">종료 날짜</span>
             <span class="metaValue">{{ periodText }}</span>
           </div>
           <div class="metaItem">
             <span class="metaLabel">남은 시간</span>
-            <span class="metaValue" :class="{ ended: countdown.ended }">
+            <span class="metaValue metaValue--timer" :class="{ ended: countdown.ended }">
               <template v-if="eventState.data">
-                {{ countdown.days }}d {{ pad2(countdown.hours) }}:{{ pad2(countdown.minutes) }}:{{
-                  pad2(countdown.seconds)
-                }}
-                <span v-if="countdown.ended"> (종료)</span>
+                {{ countdownText }}
               </template>
               <template v-else>--</template>
             </span>
           </div>
-        </div>
-
-        <div class="heroActions">
-          <button class="primary" :class="{ pressed: pressBtn }" @click="scrollToForm">
-            지금 응모하기
-          </button>
-          <button class="ghost" @click="copyShareUrl">공유하기</button>
-          <span class="toast" v-if="toast">{{ toast }}</span>
         </div>
       </div>
     </header>
@@ -52,14 +41,14 @@
     <!-- Rewards -->
     <section class="container" data-reveal v-if="eventState.data">
       <div class="sectionHead">
-        <h2 class="h2">🎁 혜택</h2>
+        <h2 class="h2">🎁 당첨 선물 🎁</h2>
         <p class="muted">아래 혜택 중 일부가 랜덤으로 제공됩니다.</p>
       </div>
 
       <div class="grid">
         <article v-for="r in eventState.data.rewards" :key="r.id" class="reward" tabindex="0">
           <div class="rewardMedia">
-            <img v-if="r.image" :src="r.image" :alt="r.name" @error="onImgErr" />
+            <img v-if="r.image" :src="`/rewards/${r.image}`" :alt="r.name" @error="onImgErr" />
             <div v-else class="fallback">{{ r.name[0] }}</div>
           </div>
           <div class="rewardName">{{ r.name }}</div>
@@ -109,7 +98,7 @@
         <div class="field row">
           <label class="check">
             <input type="checkbox" v-model="form.agreedTerms" />
-            <span>약관에 동의합니다. *</span>
+            <span>약관에 동의합니다.</span>
           </label>
           <p class="err" v-if="errors.agreedTerms">{{ errors.agreedTerms }}</p>
         </div>
@@ -149,7 +138,12 @@
 
     <!-- Mini Interaction -->
     <section class="container">
-      <Roulette :disabled="submitState.success" :rewards="eventState.data?.rewards ?? []" />
+      <Roulette
+        :disabled="!submitState.success || hasSpun"
+        :rewards="eventState.data?.rewards ?? []"
+        :alreadyDone="submitState.success && hasSpun"
+        @result="onRouletteResult"
+      />
     </section>
 
     <footer class="footer">
@@ -162,7 +156,7 @@
   import { computed, onMounted, onBeforeUnmount, reactive, ref } from "vue";
   import type { EventResponse } from "../types/event";
   import { useRevealOnScroll } from "../hooks/useRevealOnScroll";
-  import { getCountdownParts, pad2 } from "../utils/countdown";
+  import { getCountdownParts } from "../utils/countdown";
   import type { EntryPayload } from "../types/entries";
   import { fetchEvent, submitEntry } from "../api/api";
   import Roulette from "../components/Roulette.vue";
@@ -189,6 +183,20 @@
     const parts = getCountdownParts(eventState.data.endDate);
     Object.assign(countdown, parts);
   }
+
+  const countdownText = computed(() => {
+    if (!eventState.data) return "--";
+
+    if (countdown.ended) return "종료되었습니다";
+
+    // 전체 남은 시간을 "총 시간"으로 환산 (days 포함)
+    const totalHours = countdown.days * 24 + countdown.hours;
+
+    const m = String(countdown.minutes).padStart(2, "0");
+    const s = String(countdown.seconds).padStart(2, "0");
+
+    return `${totalHours}시간 ${m}분 ${s}초 후 종료!`;
+  });
 
   /** --- parallax --- */
   const parallaxY = ref(0);
@@ -223,15 +231,37 @@
   /** --- period text --- */
   const periodText = computed(() => {
     if (!eventState.data) return "-";
+
     const end = new Date(eventState.data.endDate);
-    return `~ ${end.toLocaleString("ko-KR")}`;
+
+    const y = end.getFullYear();
+    const m = String(end.getMonth() + 1).padStart(2, "0");
+    const d = String(end.getDate()).padStart(2, "0");
+
+    const hh = String(end.getHours()).padStart(2, "0");
+    const mm = String(end.getMinutes()).padStart(2, "0");
+
+    return `${y}년 ${m}월 ${d}일 ${hh}시 ${mm}분`;
   });
 
-  /** --- duplicate prevention --- */
+  /** --- 응모 완료 키 --- */
   const ENTRY_KEY = "promo_event_entry_done_v1";
   const isDuplicated = ref(false);
   function syncDuplicated() {
     isDuplicated.value = localStorage.getItem(ENTRY_KEY) === "1";
+  }
+  /** --- 룰렛 1회 완료 키 --- */
+  const ROULETTE_KEY = "promo_event_roulette_done_v1";
+  const hasSpun = ref(false);
+
+  function syncHasSpun() {
+    hasSpun.value = localStorage.getItem(ROULETTE_KEY) === "1";
+  }
+
+  function onRouletteResult() {
+    localStorage.setItem(ROULETTE_KEY, "1");
+    syncHasSpun();
+    showToast("룰렛 참여 완료!");
   }
 
   /** --- form --- */
@@ -334,6 +364,7 @@
 
   onMounted(() => {
     syncDuplicated();
+    syncHasSpun();
     loadEvent();
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -370,17 +401,20 @@
     will-change: transform;
   }
   .heroInner {
-    max-width: 980px;
+    max-width: 600px;
     margin: 0 auto;
     position: relative;
   }
   .badge {
-    display: inline-block;
-    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.14);
     font-size: 12px;
+    letter-spacing: -0.2px;
+    color: #ffffff;
+    background: linear-gradient(90deg, rgba(92, 225, 245, 0.95), rgba(190, 132, 245, 0.95));
   }
   .h1 {
     margin: 10px 0 8px;
@@ -437,7 +471,7 @@
       opacity 0.12s ease;
   }
   .primary {
-    background: linear-gradient(90deg, rgba(34, 211, 238, 0.35), rgba(168, 85, 247, 0.35));
+    background-color: rgb(182, 255, 255);
     border: 1px solid rgba(255, 255, 255, 0.18);
   }
 
@@ -474,7 +508,7 @@
   }
 
   .container {
-    max-width: 980px;
+    max-width: 600px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -484,6 +518,7 @@
   }
 
   .sectionHead {
+    width: 100%;
     margin-bottom: 12px;
   }
   .h2 {
@@ -521,7 +556,7 @@
   .reward {
     padding: 14px;
     border-radius: 18px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgb(255, 255, 255);
     border: 1px solid rgba(255, 255, 255, 0.12);
     transition:
       transform 0.18s ease,
@@ -538,13 +573,15 @@
     border-color: rgba(34, 211, 238, 0.28);
   }
   .rewardMedia {
-    height: 84px;
-    border-radius: 14px;
-    background: rgba(0, 0, 0, 0.18);
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 16px;
+    background: rgba(211, 211, 211, 0.18);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    display: grid;
-    place-items: center;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .rewardMedia img {
     width: 100%;
@@ -561,6 +598,7 @@
   }
 
   .form {
+    width: 100%;
     padding: 16px;
     border-radius: 18px;
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -584,8 +622,11 @@
     padding: 12px 12px;
     border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.05);
     outline: none;
+  }
+  .field input::placeholder {
+    color: rgba(56, 56, 56, 0.45);
   }
   .field input:focus {
     border-color: rgba(34, 211, 238, 0.35);
@@ -598,10 +639,10 @@
     font-size: 12px;
     color: rgba(248, 113, 113, 0.92);
   }
-
   .row {
     display: flex;
     align-items: center;
+    text-align: center;
     gap: 10px;
     flex-wrap: wrap;
   }

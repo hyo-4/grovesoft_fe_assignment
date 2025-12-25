@@ -7,7 +7,7 @@
       <p v-else>행운을 빌어요!</p>
     </div>
 
-    <div class="roulette-wrapper" :style="rouletteStyle">
+    <div class="roulette-wrapper" :class="{ locked: props.disabled }" :style="rouletteStyle">
       <svg viewBox="0 0 100 100" class="roulette-wheel">
         <g v-for="(reward, index) in rewards" :key="reward.id">
           <path
@@ -37,8 +37,18 @@
 
     <div class="roulette-arrow"></div>
 
-    <button class="spin-button" :disabled="isSpinning" @click="spinWheel">
-      {{ isSpinning ? "회전 중..." : "START" }}
+    <button
+      v-if="!selectedReward"
+      class="spin-button"
+      :disabled="isSpinning || props.disabled"
+      @click="spinWheel"
+    >
+      {{ isSpinning ? "회전 중..." : props.disabled ? "응모 후 참여 가능" : "START" }}
+    </button>
+
+    <!-- 공유 버튼 (룰렛 종료 후) -->
+    <button v-else class="spin-button spin-button--share" @click="shareUrl">
+      결과 공유하기 🔗
     </button>
   </div>
 </template>
@@ -54,6 +64,8 @@
 
   interface Props {
     rewards: Reward[];
+    disabled: boolean;
+    alreadyDone: boolean;
   }
 
   const props = defineProps<Props>();
@@ -95,6 +107,7 @@
 
   const spinWheel = () => {
     if (isSpinning.value) return;
+    if (props.disabled) return;
 
     selectedReward.value = null; // 이전 결과 초기화
     isSpinning.value = true;
@@ -119,6 +132,15 @@
     selectedReward.value = winner!;
     emit("result", winner!);
   };
+
+  const shareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      alert("URL이 복사되었습니다!");
+    } catch {
+      alert("URL 복사에 실패했어요 😢");
+    }
+  };
 </script>
 
 <style scoped>
@@ -139,6 +161,7 @@
     font-weight: bold;
     opacity: 0;
     transition: opacity 0.5s ease;
+    white-space: nowrap;
   }
 
   .result-display.show {
