@@ -1,14 +1,24 @@
 <template>
-  <div class="roulette-container">
-    <div class="result-display" :class="{ show: !isSpinning && selectedReward }">
+  <div class="roulette">
+    <div
+      class="roulette__result"
+      :class="{ 'roulette__result--show': !isSpinning && selectedReward }"
+    >
       <p v-if="selectedReward">
-        축하합니다! <span>{{ selectedReward.name }}</span> 당첨!
+        축하합니다! <span class="roulette__result-em">{{ selectedReward.name }}</span> 당첨!
       </p>
       <p v-else>행운을 빌어요!</p>
+      <div v-if="showWinOverlay" class="roulette__overlay" aria-hidden="true">
+        <DotLottieVue class="roulette__overlay-lottie" autoplay loop :src="lottieSrc" />
+      </div>
     </div>
 
-    <div class="roulette-wrapper" :class="{ locked: props.disabled }" :style="rouletteStyle">
-      <svg viewBox="0 0 100 100" class="roulette-wheel">
+    <div
+      class="roulette__wheel-wrap"
+      :class="{ 'roulette__wheel-wrap--locked': props.disabled }"
+      :style="rouletteStyle"
+    >
+      <svg viewBox="0 0 100 100" class="roulette__wheel">
         <g v-for="(reward, index) in rewards" :key="reward.id">
           <path
             :d="getArcPath(index)"
@@ -35,11 +45,11 @@
       </svg>
     </div>
 
-    <div class="roulette-arrow"></div>
+    <div class="roulette__arrow"></div>
 
     <button
       v-if="!selectedReward"
-      class="spin-button"
+      class="roulette__button"
       :disabled="isSpinning || props.disabled"
       @click="spinWheel"
     >
@@ -47,14 +57,20 @@
     </button>
 
     <!-- 공유 버튼 (룰렛 종료 후) -->
-    <button v-else class="spin-button spin-button--share" @click="shareUrl">
+    <button v-else class="roulette__button roulette__button--share" @click="shareUrl">
       결과 공유하기 🔗
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, type CSSProperties } from "vue";
+  import { ref, computed, type CSSProperties, onBeforeUnmount } from "vue";
+  import { DotLottieVue } from "@lottiefiles/dotlottie-vue";
+
+  const showWinOverlay = ref(false);
+  const overlayTimer = ref<number | null>(null);
+
+  const lottieSrc = "https://lottie.host/2b7cc1f7-b5e2-4fb6-9a03-6fc8d9ab5491/m6SZDvZHEq.lottie";
 
   export type Reward = {
     id: number;
@@ -85,7 +101,8 @@
     })
   );
 
-  const segmentAngle = computed(() => 360 / props.rewards.length);
+  const rewards = computed(() => props.rewards ?? []);
+  const segmentAngle = computed(() => 360 / Math.max(rewards.value.length, 1));
 
   const getArcPath = (index: number) => {
     const angle = segmentAngle.value;
@@ -108,16 +125,18 @@
   const spinWheel = () => {
     if (isSpinning.value) return;
     if (props.disabled) return;
+    if (rewards.value.length === 0) return;
 
-    selectedReward.value = null; // 이전 결과 초기화
+    selectedReward.value = null;
     isSpinning.value = true;
+    showWinOverlay.value = false;
 
     const randomSpin = Math.floor(Math.random() * 360);
-    const totalRotation = rotation.value + 360 * 8 + randomSpin; // 8바퀴 회전
+    const totalRotation = rotation.value + 360 * 8 + randomSpin;
 
     rotation.value = totalRotation;
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       isSpinning.value = false;
       calculateResult(totalRotation);
     }, transitionDuration * 1000);
@@ -125,13 +144,24 @@
 
   const calculateResult = (totalRotation: number) => {
     const actualDegree = totalRotation % 360;
-    const rewardIndex =
-      Math.floor((360 - actualDegree) / segmentAngle.value) % props.rewards.length;
+    const idx = Math.floor((360 - actualDegree) / segmentAngle.value) % rewards.value.length;
+    const winner = rewards.value[idx];
 
-    const winner = props.rewards[rewardIndex];
     selectedReward.value = winner!;
     emit("result", winner!);
+    triggerOverlayOnce();
   };
+
+  function triggerOverlayOnce() {
+    if (overlayTimer.value) window.clearTimeout(overlayTimer.value);
+
+    showWinOverlay.value = true;
+
+    overlayTimer.value = window.setTimeout(() => {
+      showWinOverlay.value = false;
+      overlayTimer.value = null;
+    }, 1600);
+  }
 
   const shareUrl = async () => {
     try {
@@ -141,75 +171,148 @@
       alert("URL 복사에 실패했어요 😢");
     }
   };
+
+  onBeforeUnmount(() => {
+    if (overlayTimer.value) window.clearTimeout(overlayTimer.value);
+  });
 </script>
 
-<style scoped>
-  .roulette-container {
+<style lang="scss" scoped>
+  .roulette {
     position: relative;
     width: 320px;
-    margin: 40px;
+    margin: 40px auto;
     text-align: center;
-    justify-content: center;
-  }
 
-  .result-display {
-    height: 60px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1.2rem;
-    font-weight: bold;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-    white-space: nowrap;
-  }
+    &__result {
+      height: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.2rem;
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      white-space: nowrap;
 
-  .result-display.show {
-    opacity: 1;
-  }
+      &--show {
+        opacity: 1;
+      }
+    }
 
-  .result-display span {
-    color: #ff4757;
-    font-size: 1.4rem;
-  }
+    &__result-em {
+      color: #ff4757;
+      font-size: 1.4rem;
+    }
 
-  .roulette-wrapper {
-    width: 300px;
-    height: 300px;
-    border-radius: 50%;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
-  }
+    &__wheel-wrap {
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      margin: 0 auto;
+      will-change: transform;
+      transform-origin: 50% 50%;
+      overflow: hidden;
 
-  .roulette-arrow {
-    position: absolute;
-    top: 50px;
-    left: 47%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-top: 24px solid #ff4757;
-    z-index: 10;
-  }
+      &--locked {
+        opacity: 0.6;
+        filter: grayscale(0.2);
+        pointer-events: none;
+      }
+    }
 
-  .spin-button {
-    margin-top: 30px;
-    padding: 15px 40px;
-    background: #2f3542;
-    color: white;
-    border: none;
-    border-radius: 30px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: transform 0.2s;
-  }
+    &__wheel {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
 
-  .spin-button:active {
-    transform: scale(0.95);
-  }
+    &__overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
 
-  .spin-button:disabled {
-    background: #a4b0be;
+    &__overlay-lottie {
+      width: 500px;
+      height: 500px;
+    }
+
+    @keyframes pop {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    &__arrow {
+      position: absolute;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 12px solid transparent;
+      border-right: 12px solid transparent;
+      border-top: 24px solid #ff4757;
+      z-index: 10;
+    }
+
+    &__button {
+      margin-top: 30px;
+      padding: 15px 40px;
+      background: #2f3542;
+      color: #fff;
+      border: none;
+      border-radius: 30px;
+      font-weight: 800;
+      cursor: pointer;
+      transition:
+        transform 0.2s ease,
+        filter 0.2s ease;
+      user-select: none;
+
+      &:active {
+        transform: scale(0.95);
+      }
+
+      &:disabled {
+        background: #a4b0be;
+        cursor: not-allowed;
+      }
+
+      &--share {
+        background: #1f6feb;
+      }
+    }
+
+    @media (max-width: 760px) {
+      width: 280px;
+
+      &__wheel-wrap {
+        width: 260px;
+        height: 260px;
+      }
+
+      &__arrow {
+        top: 40px;
+        border-left-width: 10px;
+        border-right-width: 10px;
+        border-top-width: 20px;
+      }
+
+      &__button {
+        padding: 14px 34px;
+      }
+    }
   }
 </style>

@@ -1,112 +1,138 @@
 <template>
-  <main class="page" @scroll.passive="onScroll">
-    <header class="hero">
-      <div
-        class="heroBg"
-        :style="{ transform: `translateY(${parallaxY}px)` }"
-        aria-hidden="true"
-      ></div>
-      <div class="heroInner" data-reveal>
-        <p class="badge">신규 서비스 오픈 기념</p>
-        <h1 class="h1">{{ eventState.data?.title ?? "이벤트 로딩 중..." }}</h1>
-        <p class="desc">{{ eventState.data?.description ?? "" }}</p>
+  <main class="event-page" @scroll.passive="onScroll">
+    <Transition name="fade">
+      <div v-if="eventState.loading" class="event-page__overlay">
+        <div class="event-page__spinner-container">
+          <div class="event-page__spinner"></div>
+          <p class="event-page__loading-text">잠시만 기다려주세요...</p>
+        </div>
+      </div>
+    </Transition>
 
-        <div class="heroMeta">
-          <div class="metaItem">
-            <span class="metaLabel">종료 날짜</span>
-            <span class="metaValue">{{ periodText }}</span>
-          </div>
-          <div class="metaItem">
-            <span class="metaLabel">남은 시간</span>
-            <span class="metaValue metaValue--timer" :class="{ ended: countdown.ended }">
-              <template v-if="eventState.data">
-                {{ countdownText }}
-              </template>
-              <template v-else>--</template>
-            </span>
-          </div>
+    <header class="event-page__hero">
+      <p class="event-page__badge">신규 서비스 오픈 기념</p>
+      <h1 class="event-page__title">{{ eventState.data?.title ?? "이벤트 로딩 중..." }}</h1>
+      <p class="event-page__desc">{{ eventState.data?.description ?? "" }}</p>
+
+      <div class="event-page__hero-meta">
+        <div class="event-page__meta-item">
+          <span class="event-page__meta-label">종료 날짜</span>
+          <span class="event-page__meta-value">{{ periodText }}</span>
+        </div>
+
+        <div class="event-page__meta-item">
+          <span class="event-page__meta-label">남은 시간</span>
+          <span
+            class="event-page__meta-value event-page__meta-value--timer"
+            :class="{ 'event-page__ended': countdown.ended }"
+          >
+            <template v-if="eventState.data">
+              {{ countdownText }}
+            </template>
+            <template v-else>--</template>
+          </span>
         </div>
       </div>
     </header>
 
-    <!-- 상태 UI -->
-    <section class="container" data-reveal>
-      <div v-if="eventState.loading" class="status">이벤트 정보를 불러오는 중...</div>
-      <div v-else-if="eventState.error" class="status status--error">
+    <!-- 상태 UI: 로딩 or 에러일 때만 렌더링 -->
+    <section
+      class="event-page__container"
+      v-if="eventState.loading || eventState.error"
+      data-reveal
+    >
+      <div v-if="eventState.loading" class="event-page__status">이벤트 정보를 불러오는 중...</div>
+
+      <div v-else class="event-page__status event-page__status--error">
         불러오기 실패: {{ eventState.error }}
-        <button class="link" @click="loadEvent">다시 시도</button>
+        <button class="event-page__link" @click="loadEvent">다시 시도</button>
       </div>
     </section>
 
-    <!-- Rewards -->
-    <section class="container" data-reveal v-if="eventState.data">
-      <div class="sectionHead">
-        <h2 class="h2">🎁 당첨 선물 🎁</h2>
-        <p class="muted">아래 혜택 중 일부가 랜덤으로 제공됩니다.</p>
+    <!-- 보상  -->
+    <section class="event-page__container" v-if="eventState.data">
+      <div class="event-page__section-head" data-reveal>
+        <h2 class="event-page__h2">🎁 당첨 선물 🎁</h2>
+        <p class="event-page__muted">아래 혜택 중 일부가 랜덤으로 제공됩니다.</p>
       </div>
 
-      <div class="grid">
-        <article v-for="r in eventState.data.rewards" :key="r.id" class="reward" tabindex="0">
-          <div class="rewardMedia">
+      <div class="event-page__grid">
+        <article
+          v-for="r in eventState.data.rewards"
+          :key="r.id"
+          class="event-page__reward"
+          tabindex="0"
+          data-reveal
+        >
+          <div class="event-page__reward-media">
             <img v-if="r.image" :src="`/rewards/${r.image}`" :alt="r.name" @error="onImgErr" />
-            <div v-else class="fallback">{{ r.name[0] }}</div>
+            <div v-else class="event-page__fallback">{{ r.name[0] }}</div>
           </div>
-          <div class="rewardName">{{ r.name }}</div>
+          <div class="event-page__reward-name">{{ r.name }}</div>
         </article>
       </div>
     </section>
 
-    <!-- Entry Form -->
-    <section class="container" data-reveal ref="formRef">
-      <div class="sectionHead">
-        <h2 class="h2">📝 응모하기</h2>
-        <p class="muted">아래 정보를 입력하고 이벤트에 참여하세요.</p>
+    <!-- 응모  -->
+    <section class="event-page__container" data-container ref="formRef">
+      <div class="event-page__section-head">
+        <h2 class="event-page__h2">📝 응모하기 📝</h2>
+        <p class="event-page__muted">아래 정보를 입력하고 이벤트에 참여하세요.</p>
       </div>
 
-      <form class="form" @submit.prevent="submit">
-        <div class="field">
-          <label>이름 <span class="required">*</span></label>
+      <form class="event-page__form" @submit.prevent="submit">
+        <div class="event-page__field" data-reveal>
+          <label class="event-page__label">
+            이름 <span class="event-page__required">*</span>
+          </label>
           <input
+            class="event-page__input"
             v-model.trim="form.name"
             placeholder="홍길동"
-            :class="{ invalid: !!errors.name }"
+            :class="{ 'event-page__invalid': !!errors.name }"
           />
-          <p class="err" v-if="errors.name">{{ errors.name }}</p>
+          <p class="event-page__err" v-if="errors.name">{{ errors.name }}</p>
         </div>
 
-        <div class="field">
-          <label>연락처 <span class="required">*</span></label>
+        <div class="event-page__field" data-reveal>
+          <label class="event-page__label">
+            연락처 <span class="event-page__required">*</span>
+          </label>
           <input
+            class="event-page__input"
             v-model.trim="form.phone"
             placeholder="010-1234-5678"
             inputmode="numeric"
-            :class="{ invalid: !!errors.phone }"
+            :class="{ 'event-page__invalid': !!errors.phone }"
           />
-          <p class="err" v-if="errors.phone">{{ errors.phone }}</p>
+          <p class="event-page__err" v-if="errors.phone">{{ errors.phone }}</p>
         </div>
 
-        <div class="field">
-          <label>이메일 <span class="required">*</span></label>
+        <div class="event-page__field" data-reveal>
+          <label class="event-page__label">
+            이메일 <span class="event-page__required">*</span>
+          </label>
           <input
+            class="event-page__input"
             v-model.trim="form.email"
             placeholder="test@example.com"
-            :class="{ invalid: !!errors.email }"
+            :class="{ 'event-page__invalid': !!errors.email }"
           />
-          <p class="err" v-if="errors.email">{{ errors.email }}</p>
+          <p class="event-page__err" v-if="errors.email">{{ errors.email }}</p>
         </div>
 
-        <div class="field row">
-          <label class="check">
+        <div class="event-page__field event-page__row" data-reveal>
+          <label class="event-page__check">
             <input type="checkbox" v-model="form.agreedTerms" />
             <span>약관에 동의합니다.</span>
           </label>
-          <p class="err" v-if="errors.agreedTerms">{{ errors.agreedTerms }}</p>
+          <p class="event-page__err" v-if="errors.agreedTerms">{{ errors.agreedTerms }}</p>
         </div>
 
-        <div class="actions">
+        <div class="event-page__actions" data-reveal>
           <button
-            class="primary"
-            :class="{ pressed: pressBtn }"
+            class="event-page__primary"
+            :class="{ 'event-page__pressed': pressBtn }"
             type="submit"
             :disabled="submitState.loading || countdown.ended || isDuplicated"
             @click="buttonFeedback"
@@ -122,22 +148,31 @@
             }}
           </button>
 
-          <button class="ghost" type="button" @click="reset" :disabled="submitState.loading">
+          <button
+            class="event-page__ghost"
+            type="button"
+            @click="reset"
+            :disabled="submitState.loading"
+          >
             초기화
           </button>
         </div>
 
-        <div v-if="submitState.success" class="feedback ok">
+        <div v-if="submitState.success" class="event-page__feedback event-page__ok">
           ✅ 응모가 완료되었습니다! (룰렛 참여 가능)
         </div>
-        <div v-if="submitState.error" class="feedback bad">
+        <div v-if="submitState.error" class="event-page__feedback event-page__bad">
           ❌ 제출 실패: {{ submitState.error }}
         </div>
       </form>
     </section>
 
-    <!-- Mini Interaction -->
-    <section class="container">
+    <!-- 룰렛  -->
+    <section class="event-page__container">
+      <div class="event-page__section-head">
+        <h2 class="event-page__h2">🔮 룰렛 돌리기 🔮</h2>
+        <p class="event-page__muted">응모 후 참여 가능합니다.</p>
+      </div>
       <Roulette
         :disabled="!submitState.success || hasSpun"
         :rewards="eventState.data?.rewards ?? []"
@@ -146,7 +181,7 @@
       />
     </section>
 
-    <footer class="footer">
+    <footer class="event-page__footer">
       <span>© GroveSoft</span>
     </footer>
   </main>
@@ -160,8 +195,7 @@
   import type { EntryPayload } from "../types/entries";
   import { fetchEvent, submitEntry } from "../api/api";
   import Roulette from "../components/Roulette.vue";
-
-  useRevealOnScroll();
+  import { watch, nextTick } from "vue";
 
   /** --- event state --- */
   const eventState = reactive<{
@@ -174,7 +208,18 @@
     data: null,
   });
 
-  /** --- countdown --- */
+  const { observeAll } = useRevealOnScroll();
+
+  watch(
+    () => eventState.data,
+    async (v) => {
+      if (!v) return;
+      await nextTick();
+      observeAll();
+    }
+  );
+
+  /** --- 이벤트 카운트다운 --- */
   const countdown = reactive({ diff: 0, days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
   let timer: number | null = null;
 
@@ -198,37 +243,29 @@
     return `${totalHours}시간 ${m}분 ${s}초 후 종료!`;
   });
 
-  /** --- parallax --- */
+  /** --- 스크롤 --- */
   const parallaxY = ref(0);
+
   function onScroll() {
-    // main에 스크롤이 걸려있지 않을 수도 있어 window 스크롤 기반 보정
     const y = window.scrollY || 0;
-    parallaxY.value = Math.min(60, y * 0.12);
+    parallaxY.value = y * 0.15;
   }
 
-  /** --- share toast --- */
+  /** ---토스트 --- */
   const toast = ref<string | null>(null);
   function showToast(msg: string) {
     toast.value = msg;
     setTimeout(() => (toast.value = null), 1800);
   }
-  async function copyShareUrl() {
-    try {
-      await navigator.clipboard.writeText(location.href);
-      showToast("URL이 복사되었습니다");
-    } catch {
-      showToast("복사에 실패했어요");
-    }
-  }
 
-  /** --- button feedback --- */
+  /** --- 버튼 함수 --- */
   const pressBtn = ref(false);
   function buttonFeedback() {
     pressBtn.value = true;
     setTimeout(() => (pressBtn.value = false), 140);
   }
 
-  /** --- period text --- */
+  /** --- 날짜 text --- */
   const periodText = computed(() => {
     if (!eventState.data) return "-";
 
@@ -264,7 +301,7 @@
     showToast("룰렛 참여 완료!");
   }
 
-  /** --- form --- */
+  /** --- 폼 관련 정보 --- */
   const form = reactive<EntryPayload>({
     name: "",
     phone: "",
@@ -296,6 +333,7 @@
     error: null,
   });
 
+  /** --- 폼 제출 --- */
   async function submit() {
     submitState.error = null;
 
@@ -339,12 +377,6 @@
     img.style.display = "none";
   }
 
-  const formRef = ref<HTMLElement | null>(null);
-  function scrollToForm() {
-    buttonFeedback();
-    formRef.value?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   async function loadEvent() {
     eventState.loading = true;
     eventState.error = null;
@@ -376,339 +408,438 @@
   });
 </script>
 
-<style>
-  * {
+<style lang="scss">
+  .event-page {
     box-sizing: border-box;
-  }
-  body {
     margin: 0;
-  }
-  .page {
+    padding: 0;
     min-height: 100vh;
-  }
+    overflow-x: hidden;
 
-  .hero {
-    position: relative;
-    padding: 56px 18px 26px;
-    overflow: hidden;
-  }
-  .heroBg {
-    position: absolute;
-    inset: -40px -40px auto -40px;
-    height: 320px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    filter: blur(0px);
-    will-change: transform;
-  }
-  .heroInner {
-    max-width: 600px;
-    margin: 0 auto;
-    position: relative;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 12px;
-    border-radius: 999px;
-    font-size: 12px;
-    letter-spacing: -0.2px;
-    color: #ffffff;
-    background: linear-gradient(90deg, rgba(92, 225, 245, 0.95), rgba(190, 132, 245, 0.95));
-  }
-  .h1 {
-    margin: 10px 0 8px;
-    font-size: 34px;
-    letter-spacing: -0.5px;
-  }
-  .desc {
-    margin: 0 0 18px;
-    opacity: 0.9;
-  }
-
-  .heroMeta {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .metaItem {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  .metaLabel {
-    opacity: 0.75;
-  }
-  .metaValue {
-    font-weight: 700;
-  }
-  .ended {
-    opacity: 0.6;
-  }
-
-  .heroActions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-top: 16px;
-  }
-  .primary,
-  .ghost {
-    appearance: none;
-    border: 0;
-    cursor: pointer;
-    padding: 10px 14px;
-    border-radius: 12px;
-    color: black;
-    transition:
-      transform 0.12s ease,
-      filter 0.12s ease,
-      opacity 0.12s ease;
-  }
-  .primary {
-    background-color: rgb(182, 255, 255);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-  }
-
-  .ghost {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .primary:hover,
-  .ghost:hover {
-    filter: brightness(1.08);
-  }
-  .primary:active,
-  .ghost:active {
-    transform: scale(0.98);
-  }
-  .pressed {
-    animation: click 0.14s ease;
-  }
-  @keyframes click {
-    from {
-      transform: scale(1);
+    &__hero {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 56px 18px 26px;
+      overflow: hidden;
     }
-    to {
-      transform: scale(0.985);
+
+    &__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: -0.2px;
+      color: #fff;
+      background: linear-gradient(90deg, rgba(92, 225, 245, 0.95), rgba(190, 132, 245, 0.95));
     }
-  }
 
-  .toast {
-    font-size: 12px;
-    opacity: 0.9;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .container {
-    max-width: 600px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 20px 18px;
-  }
-
-  .sectionHead {
-    width: 100%;
-    margin-bottom: 12px;
-  }
-  .h2 {
-    margin: 0;
-    font-size: 20px;
-  }
-  .muted {
-    margin: 6px 0 0;
-    opacity: 0.8;
-  }
-
-  .status {
-    padding: 14px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .status--error {
-    border-color: rgba(248, 113, 113, 0.4);
-  }
-  .link {
-    margin-left: 10px;
-    background: transparent;
-    border: 0;
-    text-decoration: underline;
-    cursor: pointer;
-    opacity: 0.9;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-  }
-  .reward {
-    padding: 14px;
-    border-radius: 18px;
-    background: rgb(255, 255, 255);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    transition:
-      transform 0.18s ease,
-      box-shadow 0.18s ease,
-      border-color 0.18s ease;
-    outline: none;
-  }
-  .reward:hover,
-  .reward:focus {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow:
-      0 0 0 1px rgba(34, 211, 238, 0.22),
-      0 10px 30px rgba(0, 0, 0, 0.28);
-    border-color: rgba(34, 211, 238, 0.28);
-  }
-  .rewardMedia {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    border-radius: 16px;
-    background: rgba(211, 211, 211, 0.18);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .rewardMedia img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .fallback {
-    font-size: 26px;
-    opacity: 0.85;
-  }
-  .rewardName {
-    margin-top: 10px;
-    font-weight: 700;
-  }
-
-  .form {
-    width: 100%;
-    padding: 16px;
-    border-radius: 18px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-  .field {
-    min-width: 350px;
-    display: grid;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  .required {
-    color: red;
-  }
-  .field label {
-    font-size: 13px;
-    text-align: left;
-    margin-left: 5px;
-    opacity: 0.85;
-  }
-  .field input {
-    padding: 12px 12px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.05);
-    outline: none;
-  }
-  .field input::placeholder {
-    color: rgba(56, 56, 56, 0.45);
-  }
-  .field input:focus {
-    border-color: rgba(34, 211, 238, 0.35);
-  }
-  .invalid {
-    border-color: rgba(248, 113, 113, 0.55) !important;
-  }
-  .err {
-    margin: 0;
-    font-size: 12px;
-    color: rgba(248, 113, 113, 0.92);
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    text-align: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-  .check {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    cursor: pointer;
-  }
-  .actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 6px;
-  }
-  .primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .feedback {
-    margin-top: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
-    border: 1px solid transparent;
-  }
-  .ok {
-    border-color: rgba(34, 211, 238, 0.35);
-    background: rgba(34, 211, 238, 0.1);
-  }
-  .bad {
-    border-color: rgba(248, 113, 113, 0.35);
-    background: rgba(248, 113, 113, 0.1);
-  }
-
-  .footer {
-    padding: 22px 18px 40px;
-    opacity: 0.65;
-    text-align: center;
-    font-size: 12px;
-  }
-
-  /* reveal animation */
-  [data-reveal] {
-    opacity: 1;
-    transform: translateY(14px);
-    transition:
-      opacity 650ms ease,
-      transform 650ms ease;
-  }
-  .is-visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  /* responsive */
-  @media (max-width: 760px) {
-    .h1 {
-      font-size: 28px;
+    &__title {
+      margin: 10px 0 8px;
+      font-size: 34px;
+      letter-spacing: -0.5px;
     }
-    .grid {
+
+    &__desc {
+      margin: 0 0 18px;
+      opacity: 0.9;
+    }
+
+    &__hero-meta {
+      display: grid;
       grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 12px;
     }
-    .metaItem {
+
+    &__meta-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    &__meta-label {
+      opacity: 0.75;
+    }
+
+    &__meta-value {
+      font-weight: 700;
+    }
+
+    &__ended {
+      opacity: 0.6;
+    }
+
+    /* ================= buttons  ================= */
+    &__primary,
+    &__ghost {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      padding: 12px 18px;
+      border-radius: 14px;
+      font-weight: 700;
+      letter-spacing: -0.2px;
+      transition:
+        transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 0.18s ease,
+        filter 0.18s ease,
+        background 0.18s ease,
+        opacity 0.18s ease;
+      will-change: transform;
+    }
+
+    &__primary {
+      color: #0f172a;
+      background: linear-gradient(135deg, #7dd3fc 0%, #a5b4fc 100%);
+    }
+
+    &__primary:hover {
+      filter: brightness(1.06);
+      transform: translateY(-1px);
+    }
+
+    &__primary:active {
+      transform: translateY(0) scale(0.97);
+    }
+
+    &__primary:disabled {
+      background: linear-gradient(135deg, #e5e7eb, #f1f5f9);
+      color: #94a3b8;
+      box-shadow: none;
+      cursor: not-allowed;
+    }
+
+    &__ghost {
+      color: #334155;
+      background: rgba(255, 255, 255, 0.55);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+    }
+
+    &__ghost:hover {
+      background: rgba(255, 255, 255, 0.75);
+      transform: translateY(-1px);
+    }
+
+    &__ghost:active {
+      transform: scale(0.97);
+    }
+
+    &__pressed {
+      animation: click 0.14s ease;
+    }
+
+    @keyframes click {
+      from {
+        transform: scale(1);
+      }
+      to {
+        transform: scale(0.965);
+      }
+    }
+
+    /* ================= container ================= */
+    &__container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 50px 18px;
+      display: flex;
       flex-direction: column;
-      align-items: flex-start;
+      align-items: center;
+    }
+
+    &__section-head {
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    &__h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    &__muted {
+      margin: 6px 0 0;
+      opacity: 0.8;
+    }
+
+    /* ================= status ================= */
+    &__status {
+      padding: 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    &__status--error {
+      border-color: rgba(248, 113, 113, 0.4);
+    }
+
+    &__link {
+      margin-left: 10px;
+      background: transparent;
+      border: 0;
+      text-decoration: underline;
+      cursor: pointer;
+      opacity: 0.9;
+    }
+
+    /* ================= rewards ================= */
+    &__grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    &__reward {
+      padding: 14px;
+      border-radius: 18px;
+      background: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease;
+    }
+
+    &__reward:hover,
+    &__reward:focus {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow:
+        0 0 0 1px rgba(34, 211, 238, 0.22),
+        0 10px 30px rgba(0, 0, 0, 0.28);
+      border-color: rgba(34, 211, 238, 0.28);
+    }
+
+    &__reward-media {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      max-height: 220px;
+      border-radius: 16px;
+      background: rgba(211, 211, 211, 0.18);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    &__reward-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &__fallback {
+      font-size: 26px;
+      opacity: 0.85;
+    }
+
+    &__reward-name {
+      margin-top: 10px;
+      font-weight: 700;
+    }
+
+    /* ================= form ================= */
+    &__form {
+      width: 100%;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    &__field {
+      min-width: 350px;
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    &__label {
+      font-size: 13px;
+      margin-left: 5px;
+      opacity: 0.85;
+    }
+
+    &__required {
+      color: red;
+    }
+
+    &__input {
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(0, 0, 0, 0.05);
+      outline: none;
+    }
+
+    &__input::placeholder {
+      color: rgba(56, 56, 56, 0.45);
+    }
+
+    &__input:focus {
+      border-color: rgba(34, 211, 238, 0.35);
+    }
+
+    &__invalid {
+      border-color: rgba(248, 113, 113, 0.55) !important;
+    }
+
+    &__err {
+      font-size: 12px;
+      color: rgba(248, 113, 113, 0.92);
+    }
+
+    &__row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    &__check {
+      display: flex;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    &__actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    &__feedback {
+      margin-top: 30px;
+      padding: 12px 14px;
+      border-radius: 14px;
+    }
+
+    &__ok {
+      border: 1px solid rgba(34, 211, 238, 0.35);
+      background: rgba(34, 211, 238, 0.1);
+    }
+
+    &__bad {
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      background: rgba(248, 113, 113, 0.1);
+    }
+
+    /* ================= reveal ================= */
+    [data-reveal] {
+      opacity: 0 !important;
+      transform: translateY(40px) !important;
+      transition:
+        opacity 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    [data-reveal].is-visible {
+      opacity: 1 !important;
+      transform: translateY(0) !important;
+    }
+
+    &__form &__field[data-reveal] {
+      transition-delay: 0ms;
+    }
+    &__form &__field[data-reveal]:nth-of-type(1) {
+      transition-delay: 0.05s;
+    }
+    &__form &__field[data-reveal]:nth-of-type(2) {
+      transition-delay: 0.12s;
+    }
+    &__form &__field[data-reveal]:nth-of-type(3) {
+      transition-delay: 0.19s;
+    }
+    &__form &__field[data-reveal]:nth-of-type(4) {
+      transition-delay: 0.26s;
+    }
+    &__form &__actions[data-reveal] {
+      transition-delay: 0.33s;
+    }
+
+    /* ================= footer ================= */
+    &__footer {
+      padding: 22px 18px 40px;
+      opacity: 0.65;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    /* ================= responsive ================= */
+    @media (max-width: 760px) {
+      &__title {
+        font-size: 28px;
+      }
+
+      &__grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      &__meta-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+    /* ================= spinner ================= */
+    &__overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+
+    &__spinner-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    &__spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #7dd3fc;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    &__loading-text {
+      font-weight: 500;
+      color: #334155;
+      letter-spacing: -0.5px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.3s ease;
+    }
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
     }
   }
 </style>
